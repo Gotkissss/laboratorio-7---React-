@@ -5,26 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Snake Game 🐍</title>
 
-  <!-- React y Babel via CDN (sin herramientas de build) -->
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet" />
+
   <style>
-    /* ── Estilos globales ── */
+    /* estilos globales */
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0f1117;
-      color: #e2e8f0;
-      font-family: 'Courier New', monospace;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: 'Nunito', sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
     }
 
-    /* ── Contenedor principal ── */
     .game-wrapper {
       display: flex;
       flex-direction: column;
@@ -34,85 +34,76 @@
 
     h1 {
       font-size: 2rem;
-      color: #4ade80;
-      letter-spacing: 4px;
+      color: #cba6f7;
+      letter-spacing: 3px;
       text-transform: uppercase;
+      font-weight: 900;
     }
 
-    /* ── Tablero ── */
+    /* tablero */
     .board {
       position: relative;
-      border: 3px solid #4ade80;
-      background: #1a1d2e;
-      box-shadow: 0 0 20px #4ade8055;
+      border: 2px solid #45475a;
+      background: #181825;
     }
 
-    /* ── Celda individual del tablero ── */
     .cell {
       position: absolute;
       border-radius: 3px;
     }
 
-    /* ── Colores de serpiente y comida ── */
-    .cell-snake       { background: #4ade80; }
-    .cell-snake-head  { background: #86efac; border-radius: 6px; }
-    .cell-food        { background: #f87171; border-radius: 50%; box-shadow: 0 0 8px #f87171aa; }
+    /* serpiente y comida */
+    .cell-snake       { background: #89b4fa; }
+    .cell-snake-head  { background: #b4befe; border-radius: 5px; }
+    .cell-food        { background: #fab387; border-radius: 50%; }
 
-    /* ── Marcador ── */
+    /* marcador */
     .score-board {
-      font-size: 1.1rem;
-      color: #94a3b8;
+      font-size: 1rem;
+      color: #6c7086;
       display: flex;
       gap: 32px;
     }
-    .score-board span { color: #4ade80; font-weight: bold; }
+    .score-board span { color: #cdd6f4; font-weight: 700; }
 
-    /* ── Pantalla de inicio / game over ── */
+    /* overlay inicio / game over */
     .overlay {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      background: #0f111788;
+      background: #181825cc;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      gap: 16px;
-      backdrop-filter: blur(3px);
+      gap: 14px;
+      backdrop-filter: blur(2px);
     }
 
-    .overlay h2 { font-size: 1.8rem; color: #f87171; letter-spacing: 2px; }
-    .overlay p  { color: #94a3b8; font-size: 0.95rem; }
+    .overlay h2 { font-size: 1.6rem; color: #f38ba8; font-weight: 900; letter-spacing: 1px; }
+    .overlay p  { color: #6c7086; font-size: 0.9rem; }
 
     .btn {
-      margin-top: 8px;
-      padding: 10px 28px;
-      background: #4ade80;
-      color: #0f1117;
+      margin-top: 6px;
+      padding: 9px 26px;
+      background: #cba6f7;
+      color: #1e1e2e;
       border: none;
-      border-radius: 6px;
-      font-family: 'Courier New', monospace;
-      font-size: 1rem;
-      font-weight: bold;
+      border-radius: 8px;
+      font-family: 'Nunito', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
       cursor: pointer;
-      letter-spacing: 1px;
       transition: background 0.2s;
     }
-    .btn:hover { background: #86efac; }
+    .btn:hover { background: #b4befe; }
 
-    .controls {
-      color: #475569;
-      font-size: 0.8rem;
-      text-align: center;
-      line-height: 1.8;
-    }
-
-    /* ── Badge de velocidad ── */
+    /* badge nivel */
     .level-badge {
       font-size: 0.85rem;
-      color: #fbbf24;
+      color: #6c7086;
     }
-    .level-badge span { font-weight: bold; }
+    .level-badge span { color: #cdd6f4; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -121,18 +112,18 @@
   <script type="text/babel">
     const { useState, useEffect, useCallback, useRef } = React;
 
-    // ── Constantes del juego ──────────────────────────────────────────────────
+    //Constantes del juego
     const COLS        = 20;   // columnas del tablero
     const ROWS        = 20;   // filas del tablero
     const CELL_SIZE   = 24;   // píxeles por celda
 
-    // Velocidades por nivel (ms entre cada tick)
+    // Velocidades por nivel
     const SPEEDS = [200, 150, 110, 80];
 
     // Dirección inicial
     const DIR_RIGHT = { x: 1, y: 0 };
 
-    // Genera una posición aleatoria libre (evita la serpiente)
+    // Genera una posición aleatoria libre
     function randomFood(snake) {
       let pos;
       do {
@@ -158,16 +149,15 @@
         nextDir:   DIR_RIGHT,
         score:     0,
         level:     1,
-        running:   false,   // false = en pantalla de inicio
+        running:   false,  
         gameOver:  false,
       };
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     //  Componente: Score
     //  Muestra el puntaje actual y el nivel de dificultad.
     //  Recibe: score (número), level (número)
-    // ════════════════════════════════════════════════════════════════════════
+
     function Score({ score, level }) {
       return (
         <div className="score-board">
@@ -177,11 +167,10 @@
       );
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     //  Componente: Food
     //  Renderiza la celda de comida en el tablero.
     //  Recibe: position ({ x, y }), cellSize (número)
-    // ════════════════════════════════════════════════════════════════════════
+
     function Food({ position, cellSize }) {
       const style = {
         left:   position.x * cellSize + 2,
@@ -192,11 +181,10 @@
       return <div className="cell cell-food" style={style} />;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     //  Componente: Snake
     //  Renderiza cada segmento de la serpiente.
     //  Recibe: segments (array de { x, y }), cellSize (número)
-    // ════════════════════════════════════════════════════════════════════════
+
     function Snake({ segments, cellSize }) {
       return (
         <>
@@ -220,11 +208,10 @@
       );
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     //  Componente: Board
     //  Contiene el tablero de juego con la serpiente y la comida.
     //  Recibe: snake, food, gameOver, running, onStart, cellSize, cols, rows
-    // ════════════════════════════════════════════════════════════════════════
+
     function Board({ snake, food, gameOver, running, onStart, cellSize, cols, rows }) {
       const width  = cols * cellSize;
       const height = rows * cellSize;
@@ -240,9 +227,9 @@
           {/* Overlay: pantalla de inicio */}
           {!running && !gameOver && (
             <div className="overlay">
-              <h2 style={{ color: '#4ade80' }}>🐍 SNAKE</h2>
-              <p>Usa las flechas del teclado para moverte</p>
-              <button className="btn" onClick={onStart}>JUGAR</button>
+              <h2 style={{ color: '#cba6f7' }}>🐍 SNAKE</h2>
+              <p>usa las flechas para moverte</p>
+              <button className="btn" onClick={onStart}>jugar</button>
             </div>
           )}
 
@@ -250,25 +237,24 @@
           {gameOver && (
             <div className="overlay">
               <h2>GAME OVER</h2>
-              <p>¡Chocaste!</p>
-              <button className="btn" onClick={onStart}>REINTENTAR</button>
+              <p>chocaste...</p>
+              <button className="btn" onClick={onStart}>reintentar</button>
             </div>
           )}
         </div>
       );
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     //  Componente principal: Game
     //  Maneja todo el estado y la lógica del juego.
-    // ════════════════════════════════════════════════════════════════════════
+
     function Game() {
       const [state, setState] = useState(initState);
 
       // Referencia para leer la dirección más reciente dentro del interval
       const nextDirRef = useRef(state.nextDir);
 
-      // ── Manejo del teclado ──────────────────────────────────────────────
+      // ── Manejo del teclado
       const handleKey = useCallback((e) => {
         const map = {
           ArrowUp:    { x:  0, y: -1 },
@@ -293,7 +279,7 @@
         return () => window.removeEventListener('keydown', handleKey);
       }, [handleKey]);
 
-      // ── Loop del juego (useEffect con setInterval) ──────────────────────
+      // ── Loop del juego
       useEffect(() => {
         // Solo corre si el juego está activo
         if (!state.running || state.gameOver) return;
@@ -349,7 +335,7 @@
         return () => clearInterval(interval);
       }, [state.running, state.gameOver, state.level]);
 
-      // ── Iniciar / reiniciar partida ──────────────────────────────────────
+      // ── Iniciar / reiniciar partida 
       function handleStart() {
         const fresh = initState();
         nextDirRef.current = fresh.nextDir;
@@ -375,15 +361,12 @@
             rows={ROWS}
           />
 
-          <div className="controls">
-            ↑ ↓ ← → para moverse &nbsp;|&nbsp; Come 🔴 para crecer<br />
-            Cada 50 pts sube la velocidad 🚀
-          </div>
+
         </div>
       );
     }
 
-    // ── Punto de entrada ──────────────────────────────────────────────────
+    // ── Punto de entrada
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<Game />);
   </script>
