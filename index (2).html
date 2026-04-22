@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake Game 🐍</title>
+
+  <!-- React y Babel via CDN (sin herramientas de build) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* ── Estilos globales ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1117;
+      color: #e2e8f0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* ── Contenedor principal ── */
+    .game-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      color: #4ade80;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    /* ── Tablero ── */
+    .board {
+      position: relative;
+      border: 3px solid #4ade80;
+      background: #1a1d2e;
+      box-shadow: 0 0 20px #4ade8055;
+    }
+
+    /* ── Celda individual del tablero ── */
+    .cell {
+      position: absolute;
+      border-radius: 3px;
+    }
+
+    /* ── Colores de serpiente y comida ── */
+    .cell-snake       { background: #4ade80; }
+    .cell-snake-head  { background: #86efac; border-radius: 6px; }
+    .cell-food        { background: #f87171; border-radius: 50%; box-shadow: 0 0 8px #f87171aa; }
+
+    /* ── Marcador ── */
+    .score-board {
+      font-size: 1.1rem;
+      color: #94a3b8;
+      display: flex;
+      gap: 32px;
+    }
+    .score-board span { color: #4ade80; font-weight: bold; }
+
+    /* ── Pantalla de inicio / game over ── */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #0f111788;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      backdrop-filter: blur(3px);
+    }
+
+    .overlay h2 { font-size: 1.8rem; color: #f87171; letter-spacing: 2px; }
+    .overlay p  { color: #94a3b8; font-size: 0.95rem; }
+
+    .btn {
+      margin-top: 8px;
+      padding: 10px 28px;
+      background: #4ade80;
+      color: #0f1117;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #86efac; }
+
+    .controls {
+      color: #475569;
+      font-size: 0.8rem;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* ── Badge de velocidad ── */
+    .level-badge {
+      font-size: 0.85rem;
+      color: #fbbf24;
+    }
+    .level-badge span { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ── Constantes del juego ──────────────────────────────────────────────────
+    const COLS        = 20;   // columnas del tablero
+    const ROWS        = 20;   // filas del tablero
+    const CELL_SIZE   = 24;   // píxeles por celda
+
+    // Velocidades por nivel (ms entre cada tick)
+    const SPEEDS = [200, 150, 110, 80];
+
+    // Dirección inicial
+    const DIR_RIGHT = { x: 1, y: 0 };
+
+    // Genera una posición aleatoria libre (evita la serpiente)
+    function randomFood(snake) {
+      let pos;
+      do {
+        pos = {
+          x: Math.floor(Math.random() * COLS),
+          y: Math.floor(Math.random() * ROWS),
+        };
+      } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+      return pos;
+    }
+
+    // Estado inicial limpio del juego
+    function initState() {
+      const snake = [
+        { x: 10, y: 10 },
+        { x: 9,  y: 10 },
+        { x: 8,  y: 10 },
+      ];
+      return {
+        snake,
+        food:      randomFood(snake),
+        dir:       DIR_RIGHT,
+        nextDir:   DIR_RIGHT,
+        score:     0,
+        level:     1,
+        running:   false,   // false = en pantalla de inicio
+        gameOver:  false,
+      };
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  Componente: Score
+    //  Muestra el puntaje actual y el nivel de dificultad.
+    //  Recibe: score (número), level (número)
+    // ════════════════════════════════════════════════════════════════════════
+    function Score({ score, level }) {
+      return (
+        <div className="score-board">
+          <div>Puntaje: <span>{score}</span></div>
+          <div className="level-badge">Nivel: <span>{level}</span></div>
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  Componente: Food
+    //  Renderiza la celda de comida en el tablero.
+    //  Recibe: position ({ x, y }), cellSize (número)
+    // ════════════════════════════════════════════════════════════════════════
+    function Food({ position, cellSize }) {
+      const style = {
+        left:   position.x * cellSize + 2,
+        top:    position.y * cellSize + 2,
+        width:  cellSize - 4,
+        height: cellSize - 4,
+      };
+      return <div className="cell cell-food" style={style} />;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  Componente: Snake
+    //  Renderiza cada segmento de la serpiente.
+    //  Recibe: segments (array de { x, y }), cellSize (número)
+    // ════════════════════════════════════════════════════════════════════════
+    function Snake({ segments, cellSize }) {
+      return (
+        <>
+          {segments.map((seg, i) => {
+            const isHead = i === 0;
+            const style = {
+              left:   seg.x * cellSize + 1,
+              top:    seg.y * cellSize + 1,
+              width:  cellSize - 2,
+              height: cellSize - 2,
+            };
+            return (
+              <div
+                key={i}
+                className={`cell ${isHead ? 'cell-snake-head' : 'cell-snake'}`}
+                style={style}
+              />
+            );
+          })}
+        </>
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  Componente: Board
+    //  Contiene el tablero de juego con la serpiente y la comida.
+    //  Recibe: snake, food, gameOver, running, onStart, cellSize, cols, rows
+    // ════════════════════════════════════════════════════════════════════════
+    function Board({ snake, food, gameOver, running, onStart, cellSize, cols, rows }) {
+      const width  = cols * cellSize;
+      const height = rows * cellSize;
+
+      return (
+        <div className="board" style={{ width, height }}>
+          {/* Serpiente */}
+          <Snake segments={snake} cellSize={cellSize} />
+
+          {/* Comida */}
+          <Food position={food} cellSize={cellSize} />
+
+          {/* Overlay: pantalla de inicio */}
+          {!running && !gameOver && (
+            <div className="overlay">
+              <h2 style={{ color: '#4ade80' }}>🐍 SNAKE</h2>
+              <p>Usa las flechas del teclado para moverte</p>
+              <button className="btn" onClick={onStart}>JUGAR</button>
+            </div>
+          )}
+
+          {/* Overlay: game over */}
+          {gameOver && (
+            <div className="overlay">
+              <h2>GAME OVER</h2>
+              <p>¡Chocaste!</p>
+              <button className="btn" onClick={onStart}>REINTENTAR</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  Componente principal: Game
+    //  Maneja todo el estado y la lógica del juego.
+    // ════════════════════════════════════════════════════════════════════════
+    function Game() {
+      const [state, setState] = useState(initState);
+
+      // Referencia para leer la dirección más reciente dentro del interval
+      const nextDirRef = useRef(state.nextDir);
+
+      // ── Manejo del teclado ──────────────────────────────────────────────
+      const handleKey = useCallback((e) => {
+        const map = {
+          ArrowUp:    { x:  0, y: -1 },
+          ArrowDown:  { x:  0, y:  1 },
+          ArrowLeft:  { x: -1, y:  0 },
+          ArrowRight: { x:  1, y:  0 },
+        };
+        const newDir = map[e.key];
+        if (!newDir) return;
+
+        // Evita que la serpiente se mueva en dirección opuesta
+        setState(prev => {
+          const opposite = { x: -prev.dir.x, y: -prev.dir.y };
+          if (newDir.x === opposite.x && newDir.y === opposite.y) return prev;
+          nextDirRef.current = newDir;
+          return { ...prev, nextDir: newDir };
+        });
+      }, []);
+
+      useEffect(() => {
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+      }, [handleKey]);
+
+      // ── Loop del juego (useEffect con setInterval) ──────────────────────
+      useEffect(() => {
+        // Solo corre si el juego está activo
+        if (!state.running || state.gameOver) return;
+
+        const speed = SPEEDS[Math.min(state.level - 1, SPEEDS.length - 1)];
+
+        const interval = setInterval(() => {
+          setState(prev => {
+            if (!prev.running || prev.gameOver) return prev;
+
+            const dir = nextDirRef.current;
+
+            // Nueva cabeza
+            const head = {
+              x: prev.snake[0].x + dir.x,
+              y: prev.snake[0].y + dir.y,
+            };
+
+            // Colisión con paredes
+            if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+              return { ...prev, gameOver: true, running: false };
+            }
+
+            // Colisión consigo misma
+            if (prev.snake.some(s => s.x === head.x && s.y === head.y)) {
+              return { ...prev, gameOver: true, running: false };
+            }
+
+            const ateFood = head.x === prev.food.x && head.y === prev.food.y;
+
+            // Nueva serpiente: agrega cabeza, quita cola si no comió
+            const newSnake = ateFood
+              ? [head, ...prev.snake]
+              : [head, ...prev.snake.slice(0, -1)];
+
+            const newScore = ateFood ? prev.score + 10 : prev.score;
+            const newFood  = ateFood ? randomFood(newSnake) : prev.food;
+
+            // Sube de nivel cada 50 puntos
+            const newLevel = Math.min(Math.floor(newScore / 50) + 1, SPEEDS.length);
+
+            return {
+              ...prev,
+              snake:  newSnake,
+              food:   newFood,
+              score:  newScore,
+              level:  newLevel,
+              dir:    dir,
+            };
+          });
+        }, speed);
+
+        return () => clearInterval(interval);
+      }, [state.running, state.gameOver, state.level]);
+
+      // ── Iniciar / reiniciar partida ──────────────────────────────────────
+      function handleStart() {
+        const fresh = initState();
+        nextDirRef.current = fresh.nextDir;
+        setState({ ...fresh, running: true });
+      }
+
+      return (
+        <div className="game-wrapper">
+          <h1>🐍 Snake</h1>
+
+          {/* Marcador: recibe score y level como props */}
+          <Score score={state.score} level={state.level} />
+
+          {/* Tablero: recibe todo lo necesario como props */}
+          <Board
+            snake={state.snake}
+            food={state.food}
+            gameOver={state.gameOver}
+            running={state.running}
+            onStart={handleStart}
+            cellSize={CELL_SIZE}
+            cols={COLS}
+            rows={ROWS}
+          />
+
+          <div className="controls">
+            ↑ ↓ ← → para moverse &nbsp;|&nbsp; Come 🔴 para crecer<br />
+            Cada 50 pts sube la velocidad 🚀
+          </div>
+        </div>
+      );
+    }
+
+    // ── Punto de entrada ──────────────────────────────────────────────────
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Game />);
+  </script>
+</body>
+</html>
