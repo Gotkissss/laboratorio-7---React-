@@ -1,4 +1,4 @@
-# 🐍 Snake Game — React (sin herramientas de build)
+# Snake Game — React
 
 Juego clásico Snake implementado con **React vía CDN** y **Babel**, en un único archivo `index.html`.
 
@@ -6,7 +6,7 @@ Juego clásico Snake implementado con **React vía CDN** y **Babel**, en un úni
 
 ## ¿Cómo jugar?
 
-1. Abre `index.html` en cualquier navegador moderno (sin servidor necesario).
+1. Abre `index.html` en cualquier navegador.
 2. Presiona **JUGAR** para comenzar.
 3. Usa las **flechas del teclado** para mover la serpiente.
 4. Come la comida 🔴 para crecer y sumar puntos.
